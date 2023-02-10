@@ -6,8 +6,9 @@ Please specify path folder containing CSV files and path of Output folder
 """
 import csv
 import os
-import requests
-import time
+
+from concurrent import futures
+from urllib import request
 
 
 # provide folder path where csv files stored
@@ -16,10 +17,23 @@ CSV_FOLDER_PATH = "/home/accubits/Desktop/PyScript"
 # provide the path where the output folders needs to be created
 OUTPUT_FOLDER_PATH = "/home/accubits/Desktop/Output"
 
+
+def download_file(url: str, path: str) -> str:
+    """Download file from url and save to path.
+
+    Keyword arguments:
+    url -- download link
+    path -- file save location 
+    """
+    img_file_name = url.split('/')[-1]
+    file_path = f"{path}/{img_file_name}"
+    request.urlretrieve(url, file_path)
+    return file_path
+
 csv_files = [file for file in os.listdir(CSV_FOLDER_PATH) if file.endswith('.csv')]
 
 for csv_file in csv_files:
-    print(f"Performing operations for {CSV_FOLDER_PATH}{csv_file}")
+    print(f"Performing operations for {CSV_FOLDER_PATH}{csv_file} 🚀")
 
     file_name = csv_file.split(".")[0]
 
@@ -30,19 +44,28 @@ for csv_file in csv_files:
     if not os.path.exists(path):
         os.makedirs(path)
 
-    # download files from the link in the second column of the CSV
+    # store all urls from csv file
+    urls_list = []
+
     with open(f"{CSV_FOLDER_PATH}/{csv_file}", 'r') as file:
         reader = csv.reader(file)
         for row in reader:
             img_url = row[1]
             # perform a double check to make sure string is url
             if "/" and "." in img_url:
-                # download file and save to desired folder
-                print(f"Downloading {img_url}")
-                response = requests.get(img_url)
-                img_file_name = img_url.split('/')[-1]
-                open(f"{path}/{img_file_name}", 'wb').write(response.content)
-                print(f"The file was saved and retrieved from the location {path}/{img_file_name}")
-                time.sleep(3)
+                urls_list.append(img_url)
+    
+    with futures.ThreadPoolExecutor(max_workers=10) as executor:
+        # start load operations
+        future_to_file = {executor.submit(download_file, url, path): url for url in urls_list}
 
-print("Process completed successfully")
+        for future in futures.as_completed(future_to_file):
+            url = future_to_file[future]
+            try:
+                file_path = future.result()
+            except Exception as exc:
+                print('%r generated an exception: %s' % (url, exc))
+            else:
+                print('file saved to %r' % (url))
+
+print("Process completed successfully ✅")
